@@ -26,22 +26,34 @@ A distributed, scalable task processing system built with FastAPI, PostgreSQL, a
 
 ## Local Setup & Execution
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/Shehab-K/task-platform.git](https://github.com/Shehab-K/task-platform.git)
-   cd task-platform
-2. Create and activate virtual environment:
-bash
+### 1. Clone the repository:
+
+```bash
+git clone https://github.com/Shehab-K/task-platform.git
+cd task-platform
+```
+
+### 2. Create and activate a virtual environment:
+
+```bash
 python3 -m venv venv
 source venv/bin/activate
+```
 
-3. Install dependencies:
-bash
+### 3. Install dependencies:
+
+```bash
 pip install fastapi uvicorn pydantic
+```
 
-4. Run the API server:
-bash
+### 4. Run the API server:
+
+```bash
 uvicorn main:app --reload
+```
 
-5.Access Interactive Documentation:
-Open http://127.0.0.1:8000/docs in your browser.
+### 5. Access Interactive Documentation:
+
+Open the following URL in your browser:
+
+http://127.0.0.1:8000/docs
