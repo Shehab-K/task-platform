@@ -1,77 +1,81 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-app=FastAPI()
+from fastapi import Depends, FastAPI, HTTPException, status
+from database import Base, engine, get_db
+import models
+import schemas
+from sqlalchemy.orm import Session
 
+# Create database tables automatically on startup
+Base.metadata.create_all(bind=engine)
 
-tasks=[]
-
-
-class TaskCreate(BaseModel):
-    title:str
-    description:str | None = None
-
-
-class TaskUpdate(BaseModel):
-    title:str | None=None
-    description:str | None=None
-    status:str | None=None
+app = FastAPI(title="Cloud-Native Task Platform")
 
 
 @app.get("/")
 def mainpage():
-    return {"message":"welcome to the task manager"}
+    return {"message": "welcome to the task manager"}
 
 
 @app.get("/health")
 def health_check():
-    return {"status":"healthy"}
+    return {"status": "healthy"}
 
 
-@app.post("/tasks")
-def create_task(task:TaskCreate):
-    new_task={
-        "id":len(tasks)+1,
-        "title":task.title,
-        "description":task.description,
-        "status":"pending"
-    }
-
-    tasks.append(new_task)
-    return new_task
-
-@app.get("/tasks")
-def get_tasks():
-    return tasks
+@app.post(
+    "/tasks", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED
+)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    db_task = models.Task(title=task.title, description=task.description)
+    db.add(db_task)
+    db.commit()  # Added missing ()
+    db.refresh(db_task)
+    return db_task
 
 
-
-@app.get("/tasks/{task_id}")
-def get_task(task_id:int):
-    for task in tasks:
-        if task["id"]==task_id:
-            return task
-    raise HTTPException(status_code=404,detail="Task not found")
+@app.get("/tasks", response_model=list[schemas.TaskResponse])
+def get_tasks(db: Session = Depends(get_db)):
+    return db.query(models.Task).all()
 
 
-#update an existing task
-@app.put("/tasks/{task_id}")
-def update_task(task_id:int,task_update:TaskUpdate):
-    for task in tasks:
-        if task["id"]==task_id:
-            if task.title is not None:
-                task["title"]=task_update.title
-            if task.description is not None:
-                task["description"]=task_update.description
-            if task.status is not None:
-                task["status"]=task_update.status
-            return task
-    raise HTTPException(status_code=404,detail="task is not found")
+@app.get("/tasks/{task_id}", response_model=schemas.TaskResponse)
+def get_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()  # Fixed case to models.Task
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="task not found"
+        )
+    return task
 
 
-@app.delete("/tasks/{task_id}")
-def delete_task(task_id:int):
-    for i,task in enumerate(tasks):
-        if task["id"]==task_id:
-            tasks.pop(index)
-            return {"detail":f"task {task_id} deleted"}
-        raise HTTPException(status_code=404,detail="task not found")
+@app.put("/tasks/{task_id}", response_model=schemas.TaskResponse)
+def update_task(
+    task_id: int, task_update: schemas.TaskUpdate, db: Session = Depends(get_db)
+):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    if task_update.title is not None:
+        task.title = task_update.title
+    if task_update.description is not None:
+        task.description = task_update.description
+    if task_update.status is not None:
+        task.status = task_update.status
+
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    db.delete(task)
+    db.commit()
+    return None
