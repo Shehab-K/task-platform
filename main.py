@@ -3,6 +3,7 @@ from database import Base, engine, get_db
 import models
 import schemas
 from sqlalchemy.orm import Session
+from queue_service import send_task_to_queue
 
 # Create database tables automatically on startup
 Base.metadata.create_all(bind=engine)
@@ -28,6 +29,9 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     db.add(db_task)
     db.commit()  # Added missing ()
     db.refresh(db_task)
+
+
+    send_task_to_queue(db_task.id)
     return db_task
 
 
