@@ -1,21 +1,21 @@
 import json
 import boto3
 
-SQS_ENDPOINT_URL="http://localhost:4566"
-QUEUE_NAME="task-queue"
+SQS_ENDPOINT_URL = "http://localhost:4566"
+AWS_REGION = "eu-central-1"
+QUEUE_NAME = "task-queue"
 
-
-sqs_client=boto3.client(
+sqs_client = boto3.client(
     "sqs",
-    endpoint_url="eu-central-1",
-    region_name="AWS_REGION",
+    endpoint_url=SQS_ENDPOINT_URL,
+    region_name=AWS_REGION,
     aws_access_key_id="test",
-    aws_secret_access_keys="test",
+    aws_secret_access_key="test",
 )
 
-def get_or_create_queue_url()->str:
-    response=sqs_client.create_queue(QUEUE_NAME=QUEUE_NAME)
-    return response["queue url"]
+def get_or_create_queue_url() -> str:
+    response = sqs_client.create_queue(QueueName=QUEUE_NAME)
+    return response["QueueUrl"]
 
 def send_task_to_queue(task_id:int)->None:
     queue_url=get_or_create_queue_url()

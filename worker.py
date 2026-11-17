@@ -32,22 +32,22 @@ def run_worker()->None:
     print(f"[worker] listening for jobs on {queue_url}...")
 
     while True:
-        response=sqs_client.recive_message(
+        response=sqs_client.receive_message(
             QueueUrl=queue_url,
-            MaxNumberofMessages=1,
-            WaitTimesSeconds=10,
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=10,
         )
 
-        messages=response.get("messages",[])
+        messages=response.get("Messages",[])
         for message in messages:
-            body=json.loads(message["body"])
+            body=json.loads(message["Body"])
             task_id=body["task_id"]
 
             process_task(task_id)
 
             sqs_client.delete_message(
-                Queue_url=queue_url,
-                ReceiptHandle=message["rescriptHandle"],
+                QueueUrl=queue_url,
+                ReceiptHandle=message["ReceiptHandle"],
             )
 
 
