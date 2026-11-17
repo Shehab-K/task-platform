@@ -1,9 +1,11 @@
 import json
 import boto3
+import os
 
-SQS_ENDPOINT_URL = "http://localhost:4566"
-AWS_REGION = "eu-central-1"
-QUEUE_NAME = "task-queue"
+SQS_ENDPOINT_URL = os.getenv("SQS_ENDPOINT_URL", "http://localhost:4566")
+AWS_REGION = os.getenv("AWS_REGION", "eu-central-1")
+QUEUE_NAME = os.getenv("QUEUE_NAME", "task-queue")
+
 
 sqs_client = boto3.client(
     "sqs",
