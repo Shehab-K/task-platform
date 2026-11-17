@@ -1,59 +1,68 @@
 # Cloud-Native Task Processing Platform
 
-A distributed, scalable task processing system built with FastAPI, PostgreSQL, and AWS cloud-native services.
+A task-processing API built with FastAPI, PostgreSQL, SQLAlchemy, and an SQS-compatible queue. The current local setup uses LocalStack for SQS.
 
-## Project Architecture & Roadmap
+## Current implementation
 
-- [x] **Stage 1: FastAPI Core & REST API** (In-memory CRUD operations with Pydantic validation)
-- [ ] **Stage 2: Database Integration** (PostgreSQL & SQLAlchemy ORM with Alembic migrations)
-- [ ] **Stage 3: Asynchronous Task Processing** (Background workers with Amazon SQS)
-- [ ] **Stage 4: Cloud Infrastructure & Kubernetes** (Docker, Terraform, AWS EKS deployment)
+- FastAPI endpoints to create, list, retrieve, update, and delete tasks.
+- PostgreSQL persistence through SQLAlchemy. Tables are created at API startup; Alembic migrations are not set up yet.
+- Task creation sends a message to the `task-queue` SQS queue.
+- A separate worker polls the queue, marks tasks `processing`, simulates work for five seconds, and then marks them `completed`.
 
----
+The worker and API must run as separate processes. The worker does not start automatically with the API.
 
-## Stage 1: API Specifications
+## API
 
-| HTTP Method | Path | Description | Input / Parameters |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Health Check | None |
-| `POST` | `/tasks` | Create a new task | JSON Body (`TaskCreate`) |
-| `GET` | `/tasks` | Fetch all tasks | None |
-| `GET` | `/tasks/{task_id}` | Fetch a task by ID | Path Parameter (`task_id`) |
-| `PUT` | `/tasks/{task_id}` | Update an existing task | Path Parameter + JSON Body (`TaskUpdate`) |
-| `DELETE` | `/tasks/{task_id}` | Delete a task | Path Parameter (`task_id`) |
+| HTTP method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | API health check |
+| `POST` | `/tasks` | Create a task and enqueue it |
+| `GET` | `/tasks` | List tasks |
+| `GET` | `/tasks/{task_id}` | Get a task |
+| `PUT` | `/tasks/{task_id}` | Update a task |
+| `DELETE` | `/tasks/{task_id}` | Delete a task |
 
----
+Example request to `POST /tasks`:
 
-## Local Setup & Execution
-
-### 1. Clone the repository:
-
-```bash
-git clone https://github.com/Shehab-K/task-platform.git
-cd task-platform
+```json
+{
+  "title": "Example task",
+  "description": "A task to process"
+}
 ```
 
-### 2. Create and activate a virtual environment:
+## Local setup
+
+### Prerequisites
+
+- Python 3
+- PostgreSQL running locally, with a `task_db` database and credentials matching the connection URL in `database.py`
+- LocalStack running locally with its SQS service available at `http://localhost:4566`
+
+The current connection details are configured directly in `database.py` and `queue_service.py`. The queue is created automatically when the API or worker connects to it.
+
+### Install dependencies
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
+pip install fastapi uvicorn sqlalchemy psycopg2-binary boto3
 ```
 
-### 3. Install dependencies:
+### Run the API and worker
+
+In the first terminal, start the API:
 
 ```bash
-pip install fastapi uvicorn pydantic
-```
-
-### 4. Run the API server:
-
-```bash
+source venv/bin/activate
 uvicorn main:app --reload
 ```
 
-### 5. Access Interactive Documentation:
+In a second terminal, start the worker:
 
-Open the following URL in your browser:
+```bash
+source venv/bin/activate
+python worker.py
+```
 
-http://127.0.0.1:8000/docs
+Create a task using the interactive API docs at http://127.0.0.1:8000/docs. The worker logs task processing in its terminal. You can also check the task status with `GET /tasks/{task_id}`; it changes from `pending` to `processing` and then `completed`.
