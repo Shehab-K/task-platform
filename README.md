@@ -1,6 +1,6 @@
 # Cloud-Native Task Processing Platform
 
-A task-processing API built with FastAPI, PostgreSQL, SQLAlchemy, and an SQS-compatible queue. The current local setup uses LocalStack for SQS.
+A containerized task-processing API built with FastAPI, PostgreSQL, SQLAlchemy, and LocalStack for SQS.
 
 ## Current implementation
 
@@ -9,7 +9,7 @@ A task-processing API built with FastAPI, PostgreSQL, SQLAlchemy, and an SQS-com
 - Task creation sends a message to the `task-queue` SQS queue.
 - A separate worker polls the queue, marks tasks `processing`, simulates work for five seconds, and then marks them `completed`.
 
-The worker and API must run as separate processes. The worker does not start automatically with the API.
+The API and worker run as separate containers built from the same application source and Dockerfile.
 
 ## API
 
@@ -31,38 +31,40 @@ Example request to `POST /tasks`:
 }
 ```
 
-## Local setup
+## Run with Docker Compose
 
-### Prerequisites
+Docker Compose starts four containers:
 
-- Python 3
-- PostgreSQL running locally, with a `task_db` database and credentials matching the connection URL in `database.py`
-- LocalStack running locally with its SQS service available at `http://localhost:4566`
+- **`db`** — PostgreSQL 16, with the `task_db` database.
+- **`localstack`** — LocalStack SQS, exposed at `http://localhost:4566`.
+- **`api`** — FastAPI application, exposed at `http://localhost:8000`.
+- **`worker`** — Background task processor; its output includes task processing logs.
 
-The current connection details are configured directly in `database.py` and `queue_service.py`. The queue is created automatically when the API or worker connects to it.
-
-### Install dependencies
+Build the application image and start all four containers from the project directory:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn sqlalchemy psycopg2-binary boto3
+docker compose up --build -d
 ```
 
-### Run the API and worker
-
-In the first terminal, start the API:
+The Compose configuration waits for PostgreSQL and LocalStack health checks before starting the API and worker. Follow worker output in your terminal with:
 
 ```bash
-source venv/bin/activate
+docker compose logs -f worker
+```
+
+Open the interactive API docs at http://127.0.0.1:8000/docs and create a task. The worker logs processing; the task status changes from `pending` to `processing` and then `completed`. Check container status with `docker compose ps`, and stop the containers with `docker compose down`.
+
+Compose builds the API and worker containers from the project `Dockerfile`, which installs dependencies from `requirements.txt`. PostgreSQL and LocalStack use the upstream images specified in `docker-compose.yml`.
+
+## Run without Docker
+
+For manual development, Python 3, PostgreSQL, and LocalStack must already be running. The app expects the `task_db` database and uses the default local connection settings in `database.py` and `queue_service.py`. Install dependencies from `requirements.txt`, then run the API and worker in separate terminals:
+
+```bash
+pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-In a second terminal, start the worker:
-
 ```bash
-source venv/bin/activate
 python worker.py
 ```
-
-Create a task using the interactive API docs at http://127.0.0.1:8000/docs. The worker logs task processing in its terminal. You can also check the task status with `GET /tasks/{task_id}`; it changes from `pending` to `processing` and then `completed`.
