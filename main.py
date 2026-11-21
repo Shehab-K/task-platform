@@ -3,9 +3,9 @@ from database import Base, engine, get_db
 import models
 import schemas
 from sqlalchemy.orm import Session
-from queue_service import send_task_to_queue
+from queue_service import send_task_to_queue,DLQ_NAME,sqs_client
 
-# Create database tables automatically on startup
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Cloud-Native Task Platform")
@@ -27,7 +27,7 @@ def health_check():
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     db_task = models.Task(title=task.title, description=task.description)
     db.add(db_task)
-    db.commit()  # Added missing ()
+    db.commit()  
     db.refresh(db_task)
 
 
@@ -39,6 +39,34 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
 def get_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
+@app.get("/task/dlp")
+def get_dlp_messages():
+    dlq_url=sqs_client.create_queue(QueueName=DLQ_NAME)["QueueUrl"]
+
+    attrs=sqs_client.get_queue_attributes(
+        QueueUrl=dlq_url,
+        AttributeName=["ApproximateNumberOfMessages"]
+    )
+    message_count=int(attrs["Attributes"].get("ApproximateNumberOfMessages",0))
+    response=sqs_client.recevie_message(
+        QueueUrl=dlq_url:
+        MaxNumberOfMessages=10,
+        WaitTimeSeconds=1,
+        VisibilityTimeout=0,
+    )
+    messages=[
+        {
+            "message_id":msg["MessageId"],
+            "body":json.loads(msg["Body"])
+        }
+        for msg in response.get("Messages",[])
+    ]
+
+    return {
+        "queue":DLQ_NAME,
+        "approximate_message_count":message_count,
+        "messages":messages,
+    }
 
 @app.get("/tasks/{task_id}", response_model=schemas.TaskResponse)
 def get_task(task_id: int, db: Session = Depends(get_db)):

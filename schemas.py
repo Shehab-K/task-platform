@@ -20,6 +20,8 @@ class TaskUpdate(BaseModel):
 class TaskResponse(TaskBase):
     id: int
     status: str
+    retry_count:int
+    error_message:str | None=None
 
     class Config:
         from_attributes = True

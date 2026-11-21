@@ -8,3 +8,5 @@ class Task(Base):
     title=Column(String,nullable=False)
     description=Column(Text,nullable=True)
     status=Column(String,default="pending")
+    retry_count=Column(Integer,default=0,nullable=False)
+    error_message=Column(Text,nullable=True)
