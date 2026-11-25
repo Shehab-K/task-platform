@@ -1,10 +1,12 @@
+import json
+
 from fastapi import Depends, FastAPI, HTTPException, status
-from database import Base, engine, get_db
+from sqlalchemy.orm import Session
+
 import models
 import schemas
-from sqlalchemy.orm import Session
-from queue_service import send_task_to_queue,DLQ_NAME,sqs_client
-
+from database import Base, engine, get_db
+from queue_service import DLQ_NAME, send_task_to_queue, sqs_client
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,9 +29,8 @@ def health_check():
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     db_task = models.Task(title=task.title, description=task.description)
     db.add(db_task)
-    db.commit()  
+    db.commit()
     db.refresh(db_task)
-
 
     send_task_to_queue(db_task.id)
     return db_task
@@ -39,38 +40,40 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
 def get_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
-@app.get("/task/dlp")
-def get_dlp_messages():
-    dlq_url=sqs_client.create_queue(QueueName=DLQ_NAME)["QueueUrl"]
 
-    attrs=sqs_client.get_queue_attributes(
+@app.get("/tasks/dlq")
+def get_dlq_messages():
+    dlq_url = sqs_client.create_queue(QueueName=DLQ_NAME)["QueueUrl"]
+
+    attrs = sqs_client.get_queue_attributes(
         QueueUrl=dlq_url,
-        AttributeName=["ApproximateNumberOfMessages"]
+        AttributeNames=["ApproximateNumberOfMessages"],
     )
-    message_count=int(attrs["Attributes"].get("ApproximateNumberOfMessages",0))
-    response=sqs_client.recevie_message(
-        QueueUrl=dlq_url:
+    message_count = int(attrs["Attributes"].get("ApproximateNumberOfMessages", 0))
+    response = sqs_client.receive_message(
+        QueueUrl=dlq_url,
         MaxNumberOfMessages=10,
         WaitTimeSeconds=1,
         VisibilityTimeout=0,
     )
-    messages=[
+    messages = [
         {
-            "message_id":msg["MessageId"],
-            "body":json.loads(msg["Body"])
+            "message_id": msg["MessageId"],
+            "body": json.loads(msg["Body"]),
         }
-        for msg in response.get("Messages",[])
+        for msg in response.get("Messages", [])
     ]
 
     return {
-        "queue":DLQ_NAME,
-        "approximate_message_count":message_count,
-        "messages":messages,
+        "queue": DLQ_NAME,
+        "approximate_message_count": message_count,
+        "messages": messages,
     }
+
 
 @app.get("/tasks/{task_id}", response_model=schemas.TaskResponse)
 def get_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id).first()  # Fixed case to models.Task
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="task not found"
